@@ -184,6 +184,7 @@ class SearchQueryBuilder
             $searchQuery['aggs'] = $this->aggsClauses;
         }
 
+        var_dump($searchQuery);
         return $searchQuery;
     }
 }

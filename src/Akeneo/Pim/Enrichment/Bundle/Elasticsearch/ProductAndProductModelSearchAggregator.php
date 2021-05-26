@@ -104,7 +104,7 @@ class ProductAndProductModelSearchAggregator
             $categoryCodes = array_merge($categoryCodes, $categoryFilter['value']);
             if (Operators::IN_CHILDREN_LIST === $categoryFilter['operator']) {
                 $childrenCategory = $this->getAllChildrenCodes($categoryCodes);
-                $categoryCodes = array_merge($categoryCodes, $childrenCategory);
+                $categoryCodes = \array_unique(array_merge($categoryCodes, $childrenCategory));
             }
         }
 

@@ -20,6 +20,7 @@ class CategoryFilter extends AbstractFieldFilter implements FieldFilterInterface
 {
     /** @var CategoryRepositoryInterface */
     protected $categoryRepository;
+    private FindChildrenCategories $findChildrenCategories;
 
     /**
      * @param CategoryRepositoryInterface $categoryRepository
@@ -28,12 +29,14 @@ class CategoryFilter extends AbstractFieldFilter implements FieldFilterInterface
      */
     public function __construct(
         CategoryRepositoryInterface $categoryRepository,
+        FindChildrenCategories $findChildrenCategories,
         array $supportedFields = [],
         array $supportedOperators = []
     ) {
         $this->supportedFields = $supportedFields;
         $this->supportedOperators = $supportedOperators;
         $this->categoryRepository = $categoryRepository;
+        $this->findChildrenCategories = $findChildrenCategories;
     }
 
     /**
@@ -124,6 +127,10 @@ class CategoryFilter extends AbstractFieldFilter implements FieldFilterInterface
 
                 $this->searchQueryBuilder->addFilter($clause);
                 break;
+            case Operators::IN_CHILDREN_LIST_WITH_UNSELECTION:
+                // build query logic here
+                var_dump($value);
+                exit;
             default:
                 throw InvalidOperatorException::notSupported($operator, static::class);
         }

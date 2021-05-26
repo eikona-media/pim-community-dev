@@ -307,6 +307,11 @@ services:
             - { name: 'pim_catalog.elasticsearch.query.product_model_filter', priority: 30 }
             - { name: 'pim_catalog.elasticsearch.query.product_and_product_model_filter', priority: 30 }
 
+    pim_catalog.query.elasticsearch.filter.find_children_categories:
+        class: Akeneo\Pim\Enrichment\Bundle\Elasticsearch\Filter\Field\FindChildrenCategories
+        arguments:
+            - '@doctrine.dbal.connection'
+
     pim_catalog.query.elasticsearch.filter.group:
         class: '%pim_catalog.query.elasticsearch.filter.group.class%'
         arguments:
@@ -321,8 +326,9 @@ services:
         class: '%pim_catalog.query.elasticsearch.filter.category.class%'
         arguments:
             - '@pim_catalog.repository.category'
+            - '@pim_catalog.query.elasticsearch.filter.find_children_categories'
             - ['categories']
-            - ['IN', 'NOT IN', 'UNCLASSIFIED', 'IN OR UNCLASSIFIED', 'IN CHILDREN', 'NOT IN CHILDREN']
+            - ['IN', 'NOT IN', 'UNCLASSIFIED', 'IN OR UNCLASSIFIED', 'IN CHILDREN', 'NOT IN CHILDREN', 'IN CHILDREN WITH UNSELECTION']
         tags:
             - { name: 'pim_catalog.elasticsearch.query.product_filter', priority: 30 }
             - { name: 'pim_catalog.elasticsearch.query.product_model_filter', priority: 30 }

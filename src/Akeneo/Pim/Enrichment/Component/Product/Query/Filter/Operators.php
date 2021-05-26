@@ -20,6 +20,7 @@ class Operators
     public const IN_LIST = 'IN';
     public const NOT_IN_LIST = 'NOT IN';
     public const IN_CHILDREN_LIST = 'IN CHILDREN';
+    public const IN_CHILDREN_LIST_WITH_UNSELECTION = 'IN CHILDREN WITH UNSELECTION';
     public const NOT_IN_CHILDREN_LIST = 'NOT IN CHILDREN';
     public const UNCLASSIFIED = 'UNCLASSIFIED';
     public const IN_LIST_OR_UNCLASSIFIED = 'IN OR UNCLASSIFIED';
