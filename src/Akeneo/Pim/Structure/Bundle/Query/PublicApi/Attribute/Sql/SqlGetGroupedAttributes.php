@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Akeneo\Pim\Structure\Bundle\Query\PublicApi\Attribute\Sql;
 
+use Akeneo\Pim\Structure\Component\Query\PublicApi\Attribute\GetGroupedAttributes;
 use Akeneo\Pim\Structure\Component\Query\PublicApi\Attribute\GroupedAttribute;
 use Doctrine\DBAL\Connection;
-use Akeneo\Pim\Structure\Component\Query\PublicApi\Attribute\GetGroupedAttributes;
 
 final class SqlGetGroupedAttributes implements GetGroupedAttributes
 {
