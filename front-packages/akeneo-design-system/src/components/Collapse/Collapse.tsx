@@ -86,12 +86,16 @@ const Collapse = React.forwardRef<HTMLDivElement, CollapseProps>(
       if (contentRef.current) {
         if (isOpen) {
           setContentHeight(contentRef.current.scrollHeight);
-          setTimeout(() => isMounted() && setOverflow('inherit'), ANIMATION_DURATION);
-        } else {
-          setContentHeight(0);
-          setOverflow('hidden');
+          const timeoutId = setTimeout(() => isMounted() && setOverflow('inherit'), ANIMATION_DURATION);
+
+          return () => clearTimeout(timeoutId);
         }
+
+        setContentHeight(0);
+        setOverflow('hidden');
       }
+
+      return;
     }, [isOpen, children]);
 
     return (
