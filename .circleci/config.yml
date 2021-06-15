@@ -64,7 +64,7 @@ jobs:
             default: true
         path_to_front_packages:
             type: string
-            default: front-packages
+            default: "front-packages"
     machine:
       image: ubuntu-2004:202101-01
     steps:
@@ -129,6 +129,13 @@ jobs:
       - restore_cache:
           name: Restore front-packages cache
           key: front-packages-libs-{{ checksum "~/front-packages.hash" }}
+      - run:
+          name: Move libs into related directory
+          command: |
+            for front-package-directory in <<parameters.path_to_front_packages>>; do
+              for in ${ls front-package-directory}
+              cp -r ${front-package-directory}/*/lib
+            done
       - run:
           name: Set front-packages directory owner to docker
           command: sudo chown -R 1000:1000 << parameters.path_to_front_packages >>
@@ -665,7 +672,7 @@ workflows:
                 requires:
                     - ready_to_build?
           - build_dev:
-                path_to_front_packages: vendor/akeneo/pim-community-dev/front-packages
+                path_to_front_packages: "front-packages vendor/akeneo/pim-community-dev/front-packages"
                 requires:
                     - checkout_ee
           - build_prod:
