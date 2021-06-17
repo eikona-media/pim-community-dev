@@ -124,6 +124,7 @@ class JobQueueConsumerCommand extends Command
 
                 if (null !== $jobExecutionMessage) {
                     $arguments = array_merge([$pathFinder->find(), $console, 'akeneo:batch:job'], $this->getArguments($jobExecutionMessage));
+                    $arguments[] = "-q";
                     $process = new Process($arguments);
 
                     $process->setTimeout(null);
