@@ -7,6 +7,7 @@ use Akeneo\Tool\Bundle\BatchQueueBundle\Manager\JobExecutionManager;
 use Akeneo\Tool\Component\Batch\Query\GetJobInstanceCode;
 use Akeneo\Tool\Component\BatchQueue\Queue\JobExecutionMessageInterface;
 use Psr\Log\LoggerInterface;
+use Ramsey\Uuid\Uuid;
 use Symfony\Component\Messenger\Handler\MessageHandlerInterface;
 use Symfony\Component\Process\PhpExecutableFinder;
 use Symfony\Component\Process\Process;
@@ -28,6 +29,7 @@ final class JobExecutionMessageHandler implements MessageHandlerInterface
     private JobExecutionManager $executionManager;
     private LoggerInterface $logger;
     private string $projectDir;
+    private $consumer;
 
     public function __construct(
         GetJobInstanceCode $getJobInstanceCode,
@@ -43,10 +45,12 @@ final class JobExecutionMessageHandler implements MessageHandlerInterface
 
     public function __invoke(JobExecutionMessageInterface $jobExecutionMessage)
     {
+        $this->consumer = (Uuid::uuid4())->toString();
         $pathFinder = new PhpExecutableFinder();
         $console = sprintf('%s%sbin%sconsole', $this->projectDir, DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR);
 
         $startTime = time();
+        file_put_contents('mylog.log', "__invoke\n", FILE_APPEND);
         try {
             $arguments = array_merge(
                 [$pathFinder->find(), $console, 'akeneo:batch:job'],
@@ -60,14 +64,18 @@ final class JobExecutionMessageHandler implements MessageHandlerInterface
             ]);
             $this->logger->debug(sprintf('Command line: "%s"', $process->getCommandLine()));
 
+            file_put_contents('mylog.log', "executeProcess job_execution_id = " . $jobExecutionMessage->getJobExecutionId() . ", consumer = " . $this->consumer . "...\n", FILE_APPEND);
             $this->executeProcess($process, $jobExecutionMessage);
         } catch (\Throwable $t) {
             $this->logger->error(sprintf('An error occurred: %s', $t->getMessage()));
             $this->logger->error($t->getTraceAsString());
         } finally {
+            file_put_contents('mylog.log', "finally\n", FILE_APPEND);
             // update status if the job execution failed due to an uncatchable error as a fatal error
             $exitStatus = $this->executionManager->getExitStatus($jobExecutionMessage);
+            file_put_contents('mylog.log', "finally exitStatus = " . ($exitStatus ? $exitStatus->__toString() : 'null') . ", consumer = " . $this->consumer . "\n", FILE_APPEND);
             if ($exitStatus && $exitStatus->isRunning()) {
+                file_put_contents('mylog.log', "Mark as failed\n", FILE_APPEND);
                 $this->executionManager->markAsFailed($jobExecutionMessage->getJobExecutionId());
             }
         }
@@ -87,6 +95,7 @@ final class JobExecutionMessageHandler implements MessageHandlerInterface
         $nbIterationBeforeUpdatingHealthCheck = self::HEALTH_CHECK_INTERVAL * 1000000 / self::RUNNING_PROCESS_CHECK_INTERVAL;
         $iteration = 1;
         while ($process->isRunning()) {
+            file_put_contents('mylog.log', "executeProcess - isRunning loop consumer = " . $this->consumer . "\n", FILE_APPEND);
             if ($iteration < $nbIterationBeforeUpdatingHealthCheck) {
                 $iteration++;
                 usleep(self::RUNNING_PROCESS_CHECK_INTERVAL);
@@ -99,6 +108,7 @@ final class JobExecutionMessageHandler implements MessageHandlerInterface
             $iteration = 1;
         }
 
+        file_put_contents('mylog.log', "executeProcess - finish isRunning consumer = " . $this->consumer . "\n", FILE_APPEND);
         $this->writeProcessOutput($process);
     }
 

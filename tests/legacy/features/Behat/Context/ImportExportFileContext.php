@@ -31,17 +31,10 @@ final class ImportExportFileContext extends PimContext implements SnippetAccepti
 {
     use SpinCapableTrait;
 
-    private JobExecutionRepository $jobExecutionRepository;
     private ?JobInstance $jobInstance;
     private ?JobExecution $jobExecution;
 
     private const USERNAME_FOR_JOB_LAUNCH = 'admin';
-
-    public function __construct(string $mainContextClass, JobExecutionRepository $jobExecutionRepository)
-    {
-        parent::__construct($mainContextClass);
-        $this->jobExecutionRepository = $jobExecutionRepository;
-    }
 
     /**
      * @When /^the (.*) are imported via the job ([\w\_]+)$/
@@ -115,17 +108,41 @@ final class ImportExportFileContext extends PimContext implements SnippetAccepti
 
     private function waitForJobToFinish(JobInstance $jobInstance): JobExecution
     {
-        $this->spin(function () use ($jobInstance) {
-            $this->jobExecutionRepository->clear();
-            $jobExecution = $this->jobExecutionRepository->findOneBy(
+        try {
+            $this->spin(function () use ($jobInstance) {
+                $this->getService('pim_enrich.repository.job_execution')->clear();
+                /** @var JobExecution $jobExecution */
+                $jobExecution = $this->getService('pim_enrich.repository.job_execution')->findOneBy(
+                    ['jobInstance' => $jobInstance],
+                    ['createTime' => 'desc']
+                );
+
+                return $jobExecution && !$jobExecution->isRunning();
+            }, sprintf('The job execution of "%s" was too long', $jobInstance->getJobName()));
+        } catch (\Exception $e) {
+            $this->getService('pim_enrich.repository.job_execution')->clear();
+            $jobExecution = $this->getService('pim_enrich.repository.job_execution')->findOneBy(
                 ['jobInstance' => $jobInstance],
                 ['createTime' => 'desc']
             );
 
-            return $jobExecution && !$jobExecution->isRunning();
-        }, sprintf('The job execution of "%s" was too long', $jobInstance->getJobName()));
+            print_r("Id: " . $jobExecution->getId() . "\n");
+            print_r("Status: " . $jobExecution->getStatus()->__toString() . "\n");
+            print_r("ExitStatus: " . $jobExecution->getExitStatus()->__toString() . "\n");
+            if ($jobExecution->getLogFile() && file_exists($jobExecution->getLogFile())) {
+                print_r("Log file: " . file_get_contents($jobExecution->getLogFile()) . "\n");
+            } else {
+                print_r("No log file\n");
+            }
 
-        return $this->jobExecutionRepository->findOneBy(
+            print_r("mylog.log file:\n");
+            print_r(file_get_contents('mylog.log'));
+            print_r("\n");
+
+            throw $e;
+        }
+
+        return $this->getService('pim_enrich.repository.job_execution')->findOneBy(
             ['jobInstance' => $jobInstance],
             ['createTime' => 'desc']
         );

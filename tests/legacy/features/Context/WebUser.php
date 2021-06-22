@@ -2151,7 +2151,20 @@ class WebUser extends PimContext
     {
         $this->wait();
 
-        $this->spin(function () use ($code) {
+        try {
+            $this->spin(function () use ($code) {
+                $jobInstance = $this->getFixturesContext()->getJobInstance($code);
+                // Force to retrieve its job executions
+                $jobInstance->getJobExecutions()->setInitialized(false);
+
+                $this->getFixturesContext()->refresh($jobInstance);
+
+                $jobExecution = $jobInstance->getJobExecutions()->last();
+                $this->getFixturesContext()->refresh($jobExecution);
+
+                return $jobExecution && !$jobExecution->isRunning();
+            }, sprintf('The job execution of "%s" was too long', $code));
+        } catch (\Exception $e) {
             $jobInstance = $this->getFixturesContext()->getJobInstance($code);
             // Force to retrieve its job executions
             $jobInstance->getJobExecutions()->setInitialized(false);
@@ -2161,8 +2174,30 @@ class WebUser extends PimContext
             $jobExecution = $jobInstance->getJobExecutions()->last();
             $this->getFixturesContext()->refresh($jobExecution);
 
-            return $jobExecution && !$jobExecution->isRunning();
-        }, sprintf('The job execution of "%s" was too long', $code));
+            print_r("1Id: " . $jobExecution->getId() . "\n");
+            print_r("1Status: " . $jobExecution->getStatus()->__toString() . "\n");
+            print_r("1ExitStatus: " . $jobExecution->getExitStatus()->__toString() . "\n");
+
+            $testJobExecution = $this->getService('pim_enrich.repository.job_execution')->findOneBy(
+                ['jobInstance' => $jobInstance],
+                ['createTime' => 'desc']
+            );
+            print_r("2Id: " . $testJobExecution->getId() . "\n");
+            print_r("2Status: " . $testJobExecution->getStatus()->__toString() . "\n");
+            print_r("2ExitStatus: " . $testJobExecution->getExitStatus()->__toString() . "\n");
+
+            if ($jobExecution->getLogFile() && file_exists($jobExecution->getLogFile())) {
+                print_r("Log file: " . file_get_contents($jobExecution->getLogFile()) . "\n");
+            } else {
+                print_r("No log file\n");
+            }
+
+            print_r("mylog.log file:\n");
+            print_r(file_get_contents('mylog.log'));
+            print_r("\n");
+
+            throw $e;
+        }
 
         $this->getMainContext()->getContainer()->get('pim_connector.doctrine.cache_clearer')->clear();
         $esClients = $this->getMainContext()->getContainer()->get('akeneo_elasticsearch.registry.clients')->getClients();

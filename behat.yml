@@ -74,7 +74,6 @@ contexts: &context
             - 'Context\FeatureContext'
     -   Pim\Behat\Context\ImportExportFileContext:
             - 'Context\FeatureContext'
-            - '@pim_enrich.repository.job_execution'
     -   Pim\Behat\Context\Storage\FileInfoStorage:
             - 'Context\FeatureContext'
     -   Pim\Behat\Context\Storage\ProductStorage:

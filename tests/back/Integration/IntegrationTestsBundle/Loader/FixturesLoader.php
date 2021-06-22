@@ -192,6 +192,9 @@ class FixturesLoader implements FixturesLoaderInterface
         $this->nativeElasticsearchClient->indices()->refresh(['index' => $this->getIndexNames()]);
         $this->clearAclCache();
         $this->jobLauncher->flushJobQueue();
+        if (file_exists('mylog.log')) {
+            unlink('mylog.log');
+        }
 
         $this->systemUserAuthenticator->createSystemUser();
 

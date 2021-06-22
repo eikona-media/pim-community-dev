@@ -34,11 +34,29 @@ class ConsumeJobMessageIntegration extends TestCase
         $jobInstanceSaver->save($jobInstance);
 
         $this->jobLauncher = $this->get('akeneo_integration_tests.launcher.job_launcher');
+        print_r("\n##############################\n\n\n");
+        if (file_exists('mylog.log')) {
+            unlink('mylog.log');
+        }
+    }
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+
+        if (file_exists('mylog.log')) {
+            print_r("Log file:\n");
+            print_r(file_get_contents('mylog.log'));
+            print_r("\n");
+        } else {
+            print_r("No log file\n");
+        }
     }
 
     public function testLaunchAJobExecution(): void
     {
         $jobExecution = $this->createJobExecutionInQueue('csv_product_export');
+        print_r("jobExecution id = " . $jobExecution->getId() . "\n");
 
         $this->jobLauncher->launchConsumerOnce();
 
@@ -58,23 +76,32 @@ class ConsumeJobMessageIntegration extends TestCase
     public function testStatusOfACrashedJobExecution(): void
     {
         $jobExecution = $this->createJobExecutionInQueue('infinite_loop_job');
+        print_r("jobExecution id = " . $jobExecution->getId() . "\n");
 
-        $options = ['email' => 'ziggy@akeneo.com', 'env' => $this->getParameter('kernel.environment')];
-        $jobExecutionMessage = DataMaintenanceJobExecutionMessage::createJobExecutionMessage($jobExecution->getId(), $options);
+        $daemonProcess = $this->jobLauncher->launchConsumerOnceInBackground();
 
-        $this->getQueue()->publish($jobExecutionMessage);
-
-        $daemonProcess = $this->jobLauncher->launchConsumerInBackground();
-
-        $jobExecutionProcessPid = $this->getJobExecutionProcessPid($daemonProcess);
+        $jobExecutionProcessPid = $this->getJobExecutionProcessPid($daemonProcess->getPid());
         print_r("jobExecutionProcessPid = $jobExecutionProcessPid\n");
 
         sleep(5);
 
-        $killJobExecution = new Process(sprintf('kill -9 %s', $jobExecutionProcessPid));
+        if (file_exists( "/proc/$jobExecutionProcessPid" )){
+            print_r("before kill - running\n");
+        } else {
+            print_r("before kill - not running\n");
+        }
+        file_put_contents('mylog.log', "kill job process PID = " . $jobExecutionProcessPid . "\n", FILE_APPEND);
+        $killJobExecution = new Process(['kill', '-9', $jobExecutionProcessPid]);
         $killJobExecution->run();
         sleep(JobExecutionMessageHandler::HEALTH_CHECK_INTERVAL + 5);
 
+        if (file_exists( "/proc/$jobExecutionProcessPid" )){
+            print_r("after kill - running\n");
+        } else {
+            print_r("after kill - not running\n");
+        }
+
+        file_put_contents('mylog.log', "getJobExecutionDatabaseRow\n", FILE_APPEND);
         $row = $this->getJobExecutionDatabaseRow($jobExecution);
 
         Assert::assertEquals(BatchStatus::FAILED, $row['status']);
@@ -93,18 +120,28 @@ class ConsumeJobMessageIntegration extends TestCase
     public function testJobExecutionStatusResolverWhenDaemonAndJobExecutionCrash(): void
     {
         $jobExecution = $this->createJobExecutionInQueue('infinite_loop_job');
+        print_r("jobExecution id = " . $jobExecution->getId() . "\n");
 
-        $daemonProcess = $this->jobLauncher->launchConsumerOnceInBackground(5);
+        $daemonProcess = $this->jobLauncher->launchConsumerOnceInBackground();
+        print_r("daemon PID = " . $daemonProcess->getPid() . "\n");
+        print_r("is running? = " . ($daemonProcess->isRunning() ? 'yes' : 'no') . "\n");
 
-        $jobExecutionProcessPid = $this->getJobExecutionProcessPid($daemonProcess);
+        file_put_contents('mylog.log', "daemon PID = " . $daemonProcess->getPid() . "\n", FILE_APPEND);
+        $jobExecutionProcessPid = $this->getJobExecutionProcessPid($daemonProcess->getPid());
+        print_r("$jobExecutionProcessPid = " . $jobExecutionProcessPid . "\n");
 
-        $killDaemon = new Process(sprintf('kill -9 %s', $daemonProcess->getPid()));
-        $killDaemon->run();
+//        $killDaemon = new Process(sprintf('kill -9 %s', $daemonProcess->getPid()));
+//        $killDaemon->run();
+        print_r("daemon PID = " . $daemonProcess->getPid() . "\n");
+        $daemonProcess->stop(3,9);
+
+        file_put_contents('mylog.log', "kill daemon...\n", FILE_APPEND);
 
         // wait update of the job execution status in database
         while ($daemonProcess->isRunning()) {
             sleep(1);
         }
+        file_put_contents('mylog.log', "kill daemon ok\n", FILE_APPEND);
         sleep(2);
 
         $killJobExecution = new Process(sprintf('kill -9 %s', $jobExecutionProcessPid));
@@ -120,10 +157,19 @@ class ConsumeJobMessageIntegration extends TestCase
         Assert::assertNotNull($row['health_check_time']);
 
         $jobExecutionRepository = $this->get('pim_enrich.repository.job_execution');
+        $jobExecution = $this->get('pim_enrich.repository.job_execution')->findBy(['id' => $jobExecution->getId()])[0];
+        print_r("before0 getStatus = " . $jobExecution->getStatus()->__toString() . "\n");
+        print_r("before0 getExitStatus = " . $jobExecution->getExitStatus()->__toString() . "\n");
+
         $jobExecutionRepository->clear();
+        /** @var JobExecution $jobExecution */
         $jobExecution = $jobExecutionRepository->find($jobExecution->getId());
+        print_r("before getStatus = " . $jobExecution->getStatus()->__toString() . "\n");
+        print_r("before getExitStatus = " . $jobExecution->getExitStatus()->__toString() . "\n");
         $jobExecution = $this->getJobExecutionManager()->resolveJobExecutionStatus($jobExecution);
 
+        print_r("after getStatus = " . $jobExecution->getStatus()->__toString() . "\n");
+        print_r("after getExitStatus = " . $jobExecution->getExitStatus()->__toString() . "\n");
         Assert::assertEquals(BatchStatus::FAILED, $jobExecution->getStatus()->getValue());
         Assert::assertEquals(ExitStatus::FAILED, $jobExecution->getExitStatus()->getExitCode());
     }
@@ -171,30 +217,24 @@ class ConsumeJobMessageIntegration extends TestCase
     /**
      * Returns the PID of the job execution process launched by the daemon process.
      */
-    protected function getJobExecutionProcessPid(Process $daemonProcess): string
+    protected function getJobExecutionProcessPid(int $processPid): string
     {
         $count = 0;
-        $firstOutput = '';
         do {
-            $pgrep = new Process(sprintf('pgrep -P %s', $daemonProcess->getPid()));
+            $pgrep = new Process(sprintf('pgrep -P %d', $processPid));
             $pgrep->run();
             $output = trim($pgrep->getOutput());
-            print_r("count = $count, output = $output\n");
-            if ($output !== '' && $firstOutput === '') {
-                $firstOutput = $output;
+            if ('' !== $output) {
+                return $output;
             }
-            $isJobLaunched = '' !== $output;
 
             $count++;
             if ($count > 30) {
-                throw new \Exception('Time out to launch the job execution child process.');
+                throw new \Exception('Time out to launch the job execution child process of' . $processPid . '.');
             }
 
             sleep(1);
-//        } while (false === $isJobLaunched);
-        } while ($count <= 20);
-
-        return $firstOutput;
+        } while (true);
     }
 
     protected function getJobExecutionDatabaseRow(JobExecution $jobExecution): array

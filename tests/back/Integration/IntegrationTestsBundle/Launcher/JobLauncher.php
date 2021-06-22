@@ -368,7 +368,12 @@ class JobLauncher
         );
 
         $process = new Process($command);
-        $process->start();
+        $process->start(function ($type, $data) {
+            print_r("Type = $type\n");
+            print_r("Data = ");
+            print_r($data);
+            print_r("\n");
+        });
 
         return $process;
     }
