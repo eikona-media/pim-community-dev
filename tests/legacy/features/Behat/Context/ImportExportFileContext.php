@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pim\Behat\Context;
 
+use Akeneo\Platform\Bundle\ImportExportBundle\Repository\InternalApi\JobExecutionRepository;
 use Akeneo\Tool\Component\Batch\Model\JobExecution;
 use Akeneo\Tool\Component\Batch\Model\JobInstance;
 use Behat\Behat\Context\SnippetAcceptingContext;
@@ -30,13 +31,17 @@ final class ImportExportFileContext extends PimContext implements SnippetAccepti
 {
     use SpinCapableTrait;
 
-    /** @var JobInstance */
-    private $jobInstance;
-
-    /** @var JobExecution */
-    private $jobExecution;
+    private JobExecutionRepository $jobExecutionRepository;
+    private ?JobInstance $jobInstance;
+    private ?JobExecution $jobExecution;
 
     private const USERNAME_FOR_JOB_LAUNCH = 'admin';
+
+    public function __construct(string $mainContextClass, JobExecutionRepository $jobExecutionRepository)
+    {
+        parent::__construct($mainContextClass);
+        $this->jobExecutionRepository = $jobExecutionRepository;
+    }
 
     /**
      * @When /^the (.*) are imported via the job ([\w\_]+)$/
@@ -110,16 +115,19 @@ final class ImportExportFileContext extends PimContext implements SnippetAccepti
 
     private function waitForJobToFinish(JobInstance $jobInstance): JobExecution
     {
-        $jobInstance->getJobExecutions()->setInitialized(false);
-        $this->getFixturesContext()->refresh($jobInstance);
-        $jobExecution = $jobInstance->getJobExecutions()->last();
-
-        $this->spin(function () use ($jobExecution) {
-            $this->getFixturesContext()->refresh($jobExecution);
+        $this->spin(function () use ($jobInstance) {
+            $this->jobExecutionRepository->clear();
+            $jobExecution = $this->jobExecutionRepository->findOneBy(
+                ['jobInstance' => $jobInstance],
+                ['createTime' => 'desc']
+            );
 
             return $jobExecution && !$jobExecution->isRunning();
         }, sprintf('The job execution of "%s" was too long', $jobInstance->getJobName()));
 
-        return $jobExecution;
+        return $this->jobExecutionRepository->findOneBy(
+            ['jobInstance' => $jobInstance],
+            ['createTime' => 'desc']
+        );
     }
 }

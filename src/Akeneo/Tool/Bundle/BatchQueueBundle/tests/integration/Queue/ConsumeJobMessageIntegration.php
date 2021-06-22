@@ -64,21 +64,29 @@ class ConsumeJobMessageIntegration extends TestCase
 
         $this->getQueue()->publish($jobExecutionMessage);
 
-        $daemonProcess = $this->jobLauncher->launchConsumerOnceInBackground();
+        $try = 1;
+        while ($try <= 3) {
+            $daemonProcess = $this->jobLauncher->launchConsumerOnceInBackground();
 
-        $jobExecutionProcessPid = $this->getJobExecutionProcessPid($daemonProcess);
+            $jobExecutionProcessPid = $this->getJobExecutionProcessPid($daemonProcess);
 
-        sleep(5);
+            sleep(5);
 
-        $killJobExecution = new Process(sprintf('kill -9 %s', $jobExecutionProcessPid));
-        $killJobExecution->run();
-        sleep(JobExecutionMessageHandler::HEALTH_CHECK_INTERVAL + 5);
+            $killJobExecution = new Process(sprintf('kill -9 %s', $jobExecutionProcessPid));
+            $killJobExecution->run();
+            sleep(JobExecutionMessageHandler::HEALTH_CHECK_INTERVAL + 5);
 
-        $row = $this->getJobExecutionDatabaseRow($jobExecution);
+            $row = $this->getJobExecutionDatabaseRow($jobExecution);
+            if (BatchStatus::FAILED !== $row['status']) {
+                $try++;
 
-        Assert::assertEquals(BatchStatus::FAILED, $row['status']);
-        Assert::assertEquals(ExitStatus::FAILED, $row['exit_code']);
-        Assert::assertNotNull($row['health_check_time']);
+                continue;
+            }
+
+            Assert::assertEquals(BatchStatus::FAILED, $row['status']);
+            Assert::assertEquals(ExitStatus::FAILED, $row['exit_code']);
+            Assert::assertNotNull($row['health_check_time']);
+        }
 
         $jobExecution = $this->get('pim_enrich.repository.job_execution')->findBy(['id' => $jobExecution->getId()]);
         $jobExecution = $this->getJobExecutionManager()->resolveJobExecutionStatus($jobExecution[0]);
