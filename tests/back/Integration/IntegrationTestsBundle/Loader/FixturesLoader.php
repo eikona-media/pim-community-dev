@@ -173,7 +173,6 @@ class FixturesLoader implements FixturesLoaderInterface
     {
         $this->deleteAllDocumentsInElasticsearch();
         $this->databaseSchemaHandler->reset();
-        $this->jobLauncher->flushJobQueue();
 
         $this->resetFilesystem();
 
@@ -192,6 +191,7 @@ class FixturesLoader implements FixturesLoaderInterface
 
         $this->nativeElasticsearchClient->indices()->refresh(['index' => $this->getIndexNames()]);
         $this->clearAclCache();
+        $this->jobLauncher->flushJobQueue();
 
         $this->systemUserAuthenticator->createSystemUser();
 
