@@ -6,6 +6,7 @@ namespace AkeneoTest\Integration\IntegrationTestsBundle\Launcher;
 use Akeneo\Tool\Bundle\MessengerBundle\Transport\GooglePubSub\PubSubClientFactory;
 use Google\Cloud\Core\Exception\ServiceException;
 use Google\Cloud\PubSub\Message;
+use Google\Cloud\PubSub\Subscription;
 
 /**
  * This class provides some helping method to test the message in a pub/sub queue.
@@ -103,5 +104,13 @@ final class PubSubQueueStatus
         } catch (ServiceException $exception) {
             throw new \RuntimeException(sprintf('Unable to access Pub/Sub: %s', $exception->getMessage()));
         }
+    }
+
+    public function getSubscription(): Subscription
+    {
+        $pubSubClient = $this->pubSubClientFactory->createPubSubClient(['projectId' => $this->projectId]);
+        $topic = $pubSubClient->topic($this->topicName);
+
+        return $topic->subscription($this->subscriptionName);
     }
 }

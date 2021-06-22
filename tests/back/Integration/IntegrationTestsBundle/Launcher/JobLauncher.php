@@ -39,20 +39,17 @@ class JobLauncher
 
     private KernelInterface $kernel;
     private Connection $dbConnection;
-    private ContainerInterface $receiverLocator;
     /** @var PubSubQueueStatus[] */
     private iterable $pubSubQueueStatuses;
 
     public function __construct(
         KernelInterface $kernel,
         Connection $dbConnection,
-        ContainerInterface $receiverLocator,
         iterable $pubSubQueueStatuses
     ) {
         Assert::allIsInstanceOf($pubSubQueueStatuses, PubSubQueueStatus::class);
         $this->kernel = $kernel;
         $this->dbConnection = $dbConnection;
-        $this->receiverLocator = $receiverLocator;
         $this->pubSubQueueStatuses = $pubSubQueueStatuses;
     }
 
@@ -459,16 +456,12 @@ class JobLauncher
 
     public function flushJobQueue(): void
     {
-        foreach (static::MESSENGER_RECEIVERS as $receiverName) {
-            Assert::true($this->receiverLocator->has($receiverName), sprintf(
-                'The "%s" transport does not exist',
-                $receiverName
-            ));
-            do {
-                $receiver = $this->receiverLocator->get($receiverName);
-                $envelopes = $receiver->get();
-                $count = is_array($envelopes) ? count($envelopes) : iterator_count($envelopes);
-            } while (0 < $count);
+        foreach ($this->pubSubQueueStatuses as $pubSubStatus) {
+            $subscription = $pubSubStatus->getSubscription();
+            if ($subscription->exists()) {
+                $subscription->delete();
+                $subscription->create();
+            }
         }
     }
 }

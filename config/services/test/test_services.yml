@@ -157,7 +157,6 @@ services:
         arguments:
             - '@kernel'
             - '@database_connection'
-            - '@messenger.receiver_locator'
             - !tagged akeneo.pim.tests.pub_sub_queue_status.job
 
     akeneo_integration_tests.pub_sub_queue_status.ui_job:
