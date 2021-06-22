@@ -374,6 +374,28 @@ class JobLauncher
     }
 
     /**
+     * Launch the daemon command to consume and launch one job execution, in a detached process in background.
+     * It uses exec to not wrap the process in a subshell, in order to get the correct pid.
+     */
+    public function launchConsumerInBackground(int $limit = 50, int $timeLimitInSeconds = null): Process
+    {
+        $command = sprintf(
+            'exec %s/console %s %s --env=%s --limit=%d --verbose %s',
+            sprintf('%s/../bin', $this->kernel->getContainer()->getParameter('kernel.root_dir')),
+            static::MESSENGER_COMMAND_NAME,
+            implode(' ', static::MESSENGER_RECEIVERS),
+            $this->kernel->getEnvironment(),
+            $limit,
+            $timeLimitInSeconds === null ? '' : sprintf('--time-limit=%d', $timeLimitInSeconds)
+        );
+
+        $process = new Process($command);
+        $process->start();
+
+        return $process;
+    }
+
+    /**
      * Launch an import in a subprocess.
      *
      * @param string $jobCode

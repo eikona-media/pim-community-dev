@@ -58,6 +58,7 @@ final class PubSubQueueStatus
             ]);
 
             foreach ($messages as $message) {
+                // From documentation: Specifying zero may immediately make the message available for another pull request
                 $subscription->modifyAckDeadline($message, 0);
             }
 

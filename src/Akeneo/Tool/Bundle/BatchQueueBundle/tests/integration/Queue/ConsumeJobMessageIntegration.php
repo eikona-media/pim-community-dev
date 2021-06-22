@@ -64,32 +64,27 @@ class ConsumeJobMessageIntegration extends TestCase
 
         $this->getQueue()->publish($jobExecutionMessage);
 
-        $try = 1;
-        while ($try <= 3) {
-            $daemonProcess = $this->jobLauncher->launchConsumerOnceInBackground();
+        $daemonProcess = $this->jobLauncher->launchConsumerInBackground();
 
-            $jobExecutionProcessPid = $this->getJobExecutionProcessPid($daemonProcess);
+        $jobExecutionProcessPid = $this->getJobExecutionProcessPid($daemonProcess);
+        print_r("jobExecutionProcessPid = $jobExecutionProcessPid\n");
 
-            sleep(5);
+        sleep(5);
 
-            $killJobExecution = new Process(sprintf('kill -9 %s', $jobExecutionProcessPid));
-            $killJobExecution->run();
-            sleep(JobExecutionMessageHandler::HEALTH_CHECK_INTERVAL + 5);
+        $killJobExecution = new Process(sprintf('kill -9 %s', $jobExecutionProcessPid));
+        $killJobExecution->run();
+        sleep(JobExecutionMessageHandler::HEALTH_CHECK_INTERVAL + 5);
 
-            $row = $this->getJobExecutionDatabaseRow($jobExecution);
-            if (BatchStatus::FAILED !== $row['status']) {
-                $try++;
+        $row = $this->getJobExecutionDatabaseRow($jobExecution);
 
-                continue;
-            }
+        Assert::assertEquals(BatchStatus::FAILED, $row['status']);
+        Assert::assertEquals(ExitStatus::FAILED, $row['exit_code']);
+        Assert::assertNotNull($row['health_check_time']);
 
-            Assert::assertEquals(BatchStatus::FAILED, $row['status']);
-            Assert::assertEquals(ExitStatus::FAILED, $row['exit_code']);
-            Assert::assertNotNull($row['health_check_time']);
-        }
-
-        $jobExecution = $this->get('pim_enrich.repository.job_execution')->findBy(['id' => $jobExecution->getId()]);
-        $jobExecution = $this->getJobExecutionManager()->resolveJobExecutionStatus($jobExecution[0]);
+        $jobExecutionRepository = $this->get('pim_enrich.repository.job_execution');
+        $jobExecutionRepository->clear();
+        $jobExecution = $jobExecutionRepository->find($jobExecution->getId());
+        $jobExecution = $this->getJobExecutionManager()->resolveJobExecutionStatus($jobExecution);
 
         Assert::assertEquals(BatchStatus::FAILED, $jobExecution->getStatus()->getValue());
         Assert::assertEquals(ExitStatus::FAILED, $jobExecution->getExitStatus()->getExitCode());
@@ -124,8 +119,10 @@ class ConsumeJobMessageIntegration extends TestCase
         Assert::assertEquals(ExitStatus::UNKNOWN, $row['exit_code']);
         Assert::assertNotNull($row['health_check_time']);
 
-        $jobExecution = $this->get('pim_enrich.repository.job_execution')->findBy(['id' => $jobExecution->getId()]);
-        $jobExecution = $this->getJobExecutionManager()->resolveJobExecutionStatus($jobExecution[0]);
+        $jobExecutionRepository = $this->get('pim_enrich.repository.job_execution');
+        $jobExecutionRepository->clear();
+        $jobExecution = $jobExecutionRepository->find($jobExecution->getId());
+        $jobExecution = $this->getJobExecutionManager()->resolveJobExecutionStatus($jobExecution);
 
         Assert::assertEquals(BatchStatus::FAILED, $jobExecution->getStatus()->getValue());
         Assert::assertEquals(ExitStatus::FAILED, $jobExecution->getExitStatus()->getExitCode());
@@ -177,10 +174,15 @@ class ConsumeJobMessageIntegration extends TestCase
     protected function getJobExecutionProcessPid(Process $daemonProcess): string
     {
         $count = 0;
+        $firstOutput = '';
         do {
             $pgrep = new Process(sprintf('pgrep -P %s', $daemonProcess->getPid()));
             $pgrep->run();
             $output = trim($pgrep->getOutput());
+            print_r("count = $count, output = $output\n");
+            if ($output !== '' && $firstOutput === '') {
+                $firstOutput = $output;
+            }
             $isJobLaunched = '' !== $output;
 
             $count++;
@@ -189,9 +191,10 @@ class ConsumeJobMessageIntegration extends TestCase
             }
 
             sleep(1);
-        } while (false === $isJobLaunched);
+//        } while (false === $isJobLaunched);
+        } while ($count <= 20);
 
-        return $output;
+        return $firstOutput;
     }
 
     protected function getJobExecutionDatabaseRow(JobExecution $jobExecution): array
