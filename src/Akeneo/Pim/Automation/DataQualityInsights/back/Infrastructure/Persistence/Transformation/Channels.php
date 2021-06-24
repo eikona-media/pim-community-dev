@@ -28,8 +28,12 @@ class Channels
         $this->channelsLoaded = false;
     }
 
-    public function getIdByCode(string $code): ?int
+    public function getIdByCode($code): ?int
     {
+        if (is_int($code) || is_numeric($code)) {
+            $code = (string) $code;
+        }
+
         if (false === $this->channelsLoaded) {
             $this->loadChannels();
         }

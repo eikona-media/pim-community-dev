@@ -27,6 +27,10 @@ final class ChannelLocaleCollection implements \Iterator
     public function __construct(array $localesByChannel)
     {
         foreach ($localesByChannel as $channel => $locales) {
+            if (is_int($channel) || is_numeric($channel)) {
+                $channel = (string) $channel;
+            }
+
             $this->channelCodes[$channel] = new ChannelCode($channel);
             $this->localeCollections[$channel] = new LocaleCollection(array_map(function ($locale) {
                 return new LocaleCode($locale);
